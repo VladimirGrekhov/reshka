@@ -526,8 +526,9 @@ function create() {
   updateTurnUI();
 
   // Scene-level drag tracking (touch)
-  this.input.on('pointermove', (pointer)=>{ if(dragState) updateDrag(pointer); });
-  this.input.on('pointerup',   ()        =>{ if(dragState) endDrag(); });
+  this.input.on('pointerdown', (pointer)=>{ if(IS_TOUCH){ if(loupeEl) loupeEl.style.display='block'; drawLoupe(pointer.x,pointer.y); } });
+  this.input.on('pointermove', (pointer)=>{ if(dragState) updateDrag(pointer); else if(IS_TOUCH&&pointer.isDown) drawLoupe(pointer.x,pointer.y); });
+  this.input.on('pointerup',   ()        =>{ if(dragState) endDrag(); if(IS_TOUCH&&loupeEl) loupeEl.style.display='none'; });
 }
 
 // ── UI helpers ──
@@ -705,8 +706,10 @@ function drawLoupe(px,py) {
   const L=loupeEl.width;
   const ZOOM=2.5;
   const srcW=L/ZOOM, srcH=L/ZOOM;
-  const srcX=Math.max(0, Math.min(px-srcW/2, pCanvas.width -srcW));
-  const srcY=Math.max(0, Math.min(py-srcH/2, pCanvas.height-srcH));
+  // Центр лупы в координатах canvas (лупа висит выше пальца)
+  const loupeCY=py-L/2-CS;
+  const srcX=Math.max(0, Math.min(px    -srcW/2, pCanvas.width -srcW));
+  const srcY=Math.max(0, Math.min(loupeCY-srcH/2, pCanvas.height-srcH));
   const lc=loupeEl.getContext('2d');
   lc.clearRect(0,0,L,L);
   lc.save();
