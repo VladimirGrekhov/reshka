@@ -534,7 +534,7 @@ function create() {
       // Попытка схватить фишку через центр лупы
       const L=loupeEl?loupeEl.width:0;
       const lcx=pointer.x, lcy=pointer.y-L/2-CS;
-      let nearest=null, nearestDist=CS*1.8;
+      let nearest=null, nearestDist=CS*2.5;
       allPieces.forEach(p=>{
         if(!isMovable(p)) return;
         const d=Math.hypot(p.gfx.x-lcx, p.gfx.y-lcy);
@@ -696,7 +696,7 @@ function startDrag(piece, pointer) {
   });
   dbgLog(`DRAG_GO targets=${validTargets.length} loupe=${!!loupeEl} IS_TOUCH=${IS_TOUCH}`);
   if(loupeEl) loupeEl.style.display='block';
-  updateDrag(pointer);
+  drawLoupe(pointer.x, pointer.y);
 }
 
 function updateDrag(pointer) {
