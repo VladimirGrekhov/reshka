@@ -179,6 +179,18 @@ const ENDR_R = Math.round(CR*1.45), GAP_R = ENDR_R - CR;
 
 ['die1','die2'].forEach(id => { const c = document.getElementById(id); c.width = c.height = diceSize; });
 
+// Лупа (touch-only)
+loupeEl = document.createElement('canvas');
+const LS = Math.round(Math.min(Math.max(SIZE * 0.36, 100), 160));
+loupeEl.width = loupeEl.height = LS;
+Object.assign(loupeEl.style, {
+  position:'fixed', borderRadius:'50%', display:'none', zIndex:'999',
+  border:'3px solid rgba(255,255,255,0.85)',
+  boxShadow:'0 4px 24px rgba(0,0,0,0.6)',
+  pointerEvents:'none', touchAction:'none',
+});
+document.body.appendChild(loupeEl);
+
 // ── Pixel helpers (рендеринг-специфика, не входит в topology) ──
 const X_SHFT = [[0,-GAP_R],[GAP_R,0],[-GAP_R,0],[0,GAP_R]];
 const X_PX   = X_GRID.map(([r,c],s) => ({ x:bpx(c)+X_SHFT[s][0], y:bpy(r)+X_SHFT[s][1] }));
@@ -264,6 +276,8 @@ let allPieces   = []; // [{player, id, gfx, homeX, homeY, tween}] — тольк
 let sceneRef    = null;
 let infoText    = null;
 let CORNERS     = null;
+let dragState   = null; // touch drag state
+let loupeEl     = null; // loupe canvas element
 
 function ctx() { return { doubleOne }; }
 
@@ -496,7 +510,10 @@ function create() {
       const gfx=this.add.circle(px,py,CR*0.85,SEAT_COLOR[p]).setStrokeStyle(2,0xffffff);
       gfx.setInteractive(new Phaser.Geom.Circle(0,0,CR*1.3),Phaser.Geom.Circle.Contains);
       const piece={ player:p, id, gfx, homeX:px, homeY:py, tween:null };
-      gfx.on('pointerdown', ()=>onPieceClick(piece));
+      gfx.on('pointerdown', (pointer)=>{
+        if(pointer.event && pointer.event.pointerType==='touch') startDrag(piece,pointer);
+        else onPieceClick(piece);
+      });
       allPieces.push(piece);
     }
   }
@@ -504,6 +521,10 @@ function create() {
   drawDie(document.getElementById('die1').getContext('2d'),6,diceSize);
   drawDie(document.getElementById('die2').getContext('2d'),6,diceSize);
   updateTurnUI();
+
+  // Scene-level drag tracking (touch)
+  this.input.on('pointermove', (pointer)=>{ if(dragState) updateDrag(pointer); });
+  this.input.on('pointerup',   ()        =>{ if(dragState) endDrag(); });
 }
 
 // ── UI helpers ──
@@ -610,6 +631,136 @@ function doRoll(v1, v2) {
   }
   infoText.setText(doubleOne&&ENGINE.karzerEligible(turn) ? 'Дубль 1-1 — тапни фишку в карцере' : 'Выбери фишку');
   highlightMovable();
+}
+
+// ── Touch drag / loupe / magnet ──
+function dragPixelForMove(piece, move) {
+  if(move.kind==='moveBM'){
+    const b=move.bmData;
+    return {x:bpx(b.c)+b.nx*GAP_R, y:bpy(b.r)+b.ny*GAP_R};
+  }
+  return destPixelForMove(piece, move);
+}
+
+function startDrag(piece, pointer) {
+  if(phase!=='select' || !isMovable(piece)) return;
+  const rawMoves=ENGINE.movesForPiece(piece.player,piece.id,dice,used,ctx());
+  if(!rawMoves.length) return;
+
+  clearHighlights();
+  selPiece=piece;
+
+  // Группируем ходы по пиксельной позиции назначения
+  const byKey={};
+  rawMoves.forEach(m=>{
+    const {x,y}=dragPixelForMove(piece,m);
+    const k=`${Math.round(x)},${Math.round(y)}`;
+    if(!byKey[k]) byKey[k]={moves:[],px:x,py:y};
+    byKey[k].moves.push(m);
+  });
+  const validTargets=Object.values(byKey);
+
+  // Подсказки — бледные кружки на валидных клетках
+  const hints=validTargets.map(t=>
+    sceneRef.add.circle(t.px,t.py,CR*1.05,SEAT_COLOR[piece.player],0.30)
+      .setStrokeStyle(2,SEAT_LIGHT[piece.player]).setDepth(4)
+  );
+
+  dragState={piece, origX:piece.gfx.x, origY:piece.gfx.y, validTargets, snapTarget:null, hints};
+  piece.gfx.setDepth(10).setScale(1.8).setStrokeStyle(3,0xffffff);
+  allPieces.forEach(p=>{
+    if(p===piece) return;
+    p.gfx.setAlpha(p.player===turn?0.3:1).setScale(1);
+  });
+  if(loupeEl) loupeEl.style.display='block';
+  updateDrag(pointer);
+}
+
+function updateDrag(pointer) {
+  if(!dragState) return;
+  const {piece,validTargets}=dragState;
+  const fx=pointer.x, fy=pointer.y;
+
+  const MAGNET_R=CS*2.5;
+  let best=null, bestDist=Infinity;
+  validTargets.forEach(t=>{
+    const d=Math.hypot(t.px-fx,t.py-fy);
+    if(d<MAGNET_R&&d<bestDist){bestDist=d;best=t;}
+  });
+  dragState.snapTarget=best;
+  piece.gfx.setPosition(best?best.px:fx, best?best.py:fy);
+  drawLoupe(fx,fy);
+}
+
+function drawLoupe(px,py) {
+  if(!loupeEl||!sceneRef) return;
+  const pCanvas=sceneRef.game.canvas;
+  const rect=pCanvas.getBoundingClientRect();
+  const L=loupeEl.width;
+  const ZOOM=2.5;
+  const srcW=L/ZOOM, srcH=L/ZOOM;
+  const lc=loupeEl.getContext('2d');
+  lc.clearRect(0,0,L,L);
+  lc.save();
+  lc.beginPath(); lc.arc(L/2,L/2,L/2,0,Math.PI*2); lc.clip();
+  lc.drawImage(pCanvas, px-srcW/2, py-srcH/2, srcW, srcH, 0, 0, L, L);
+  lc.restore();
+  loupeEl.style.left=`${rect.left+px-L/2}px`;
+  loupeEl.style.top =`${rect.top +py-L-CS*1.2}px`;
+}
+
+function endDrag() {
+  if(!dragState) return;
+  const {piece,origX,origY,snapTarget,hints}=dragState;
+  dragState=null;
+  hints.forEach(h=>h.destroy());
+  if(loupeEl) loupeEl.style.display='none';
+  piece.gfx.setDepth(0).setScale(1).setStrokeStyle(2,0xffffff);
+  clearHighlights();
+  selPiece=null;
+
+  if(!snapTarget){
+    sceneRef.tweens.add({targets:piece.gfx,x:origX,y:origY,duration:220,ease:'Back.easeOut'});
+    return;
+  }
+
+  // Если несколько разных ходов на одну клетку — показать выбор
+  const moves=snapTarget.moves;
+  const unique=[];
+  const seen=new Set();
+  moves.forEach(m=>{
+    const k=m.kind+(m.dieIdx>=0?m.dieIdx:'s');
+    if(!seen.has(k)){seen.add(k);unique.push(m);}
+  });
+  if(unique.length>1) { showMoveChoice(piece,snapTarget.px,snapTarget.py,unique); return; }
+  executeChosenMove(piece,unique[0]);
+}
+
+function showMoveChoice(piece, px, py, moves) {
+  const BTN=CR*1.1;
+  const xs=moves.length===2?[-BTN*1.3,BTN*1.3]:[-BTN*1.3,0,BTN*1.3];
+  const objs=[];
+  moves.slice(0,3).forEach((m,i)=>{
+    const bx=px+xs[i], by=py;
+    const label=m.kind==='sum'?`Σ${m.dieVal}`:`${m.dieVal}`;
+    const c=sceneRef.add.circle(bx,by,BTN,0x222222,0.9).setStrokeStyle(2,0xffffff).setDepth(20);
+    const t=sceneRef.add.text(bx,by,label,{fontSize:Math.floor(BTN*0.85)+'px',color:'#fff',fontFamily:'monospace',fontStyle:'bold'}).setOrigin(0.5).setDepth(21);
+    [c,t].forEach(o=>{
+      o.setInteractive(new Phaser.Geom.Circle(0,0,BTN*1.4),Phaser.Geom.Circle.Contains);
+      o.on('pointerdown',()=>{objs.forEach(x=>x.destroy());executeChosenMove(piece,m);});
+    });
+    objs.push(c,t);
+  });
+}
+
+function executeChosenMove(piece, move) {
+  if(move.kind==='sum'){used[0]=true;used[1]=true;}
+  else if(move.dieIdx>=0) used[move.dieIdx]=true;
+  updateDiceUI();
+  phase='move';
+  const ep=ENGINE.pieces[piece.player][piece.id];
+  dbgLog(`MOVE  player=${turn}(${SEAT_NAME[turn]}) piece=${piece.id} die=${move.dieVal} kind=${move.kind} from=${ep.where}[${ep.progress}] to=${move.destProg}${move.kind==='moveBM'?' +БМ':''}`);
+  executeMove(piece,move);
 }
 
 // ── Select phase ──
