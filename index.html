@@ -672,7 +672,7 @@ function startDrag(piece, pointer) {
   );
 
   dragState={piece, origX:piece.gfx.x, origY:piece.gfx.y, validTargets, snapTarget:null, hints};
-  piece.gfx.setDepth(10).setScale(1.8).setStrokeStyle(3,0xffffff);
+  piece.gfx.setDepth(10).setScale(1.0).setStrokeStyle(3,0xffffff);
   allPieces.forEach(p=>{
     if(p===piece) return;
     p.gfx.setAlpha(p.player===turn?0.3:1).setScale(1);
