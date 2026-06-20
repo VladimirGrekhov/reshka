@@ -705,11 +705,13 @@ function drawLoupe(px,py) {
   const L=loupeEl.width;
   const ZOOM=2.5;
   const srcW=L/ZOOM, srcH=L/ZOOM;
+  const srcX=Math.max(0, Math.min(px-srcW/2, pCanvas.width -srcW));
+  const srcY=Math.max(0, Math.min(py-srcH/2, pCanvas.height-srcH));
   const lc=loupeEl.getContext('2d');
   lc.clearRect(0,0,L,L);
   lc.save();
   lc.beginPath(); lc.arc(L/2,L/2,L/2,0,Math.PI*2); lc.clip();
-  lc.drawImage(pCanvas, px-srcW/2, py-srcH/2, srcW, srcH, 0, 0, L, L);
+  lc.drawImage(pCanvas, srcX, srcY, srcW, srcH, 0, 0, L, L);
   lc.restore();
   loupeEl.style.left=`${rect.left+px-L/2}px`;
   loupeEl.style.top =`${rect.top +py-L-CS*1.2}px`;
