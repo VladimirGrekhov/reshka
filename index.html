@@ -532,8 +532,7 @@ function create() {
     drawLoupe(pointer.x, pointer.y);
     if(!dragState){
       // Попытка схватить фишку через центр лупы
-      const L=loupeEl?loupeEl.width:0;
-      const lcx=pointer.x, lcy=pointer.y-L/2-CS;
+      const lcx=pointer.x, lcy=loupeAimY(pointer.y);
       let nearest=null, nearestDist=CS*1.8;
       allPieces.forEach(p=>{
         if(!isMovable(p)) return;
@@ -699,13 +698,17 @@ function startDrag(piece, pointer) {
   updateDrag(pointer);
 }
 
+// Адаптивное смещение: у верха поля лупа высоко, у низа — у пальца
+function loupeAimY(fy) {
+  const L=loupeEl?loupeEl.width:0;
+  return fy-(L/2+CS)*Math.max(0, 1-fy/SIZE);
+}
+
 function updateDrag(pointer) {
   if(!dragState) return;
   const {piece,validTargets}=dragState;
   const fx=pointer.x, fy=pointer.y;
-  // Прицел — центр лупы (выше пальца)
-  const L=loupeEl?loupeEl.width:0;
-  const lcx=fx, lcy=fy-L/2-CS;
+  const lcx=fx, lcy=loupeAimY(fy);
 
   const MAGNET_R=CS*2.5;
   let best=null, bestDist=Infinity;
@@ -726,9 +729,8 @@ function drawLoupe(px,py) {
   const L=loupeEl.width;
   const ZOOM=2.5;
   const srcW=L/ZOOM, srcH=L/ZOOM;
-  // Центр лупы в координатах canvas (лупа висит выше пальца)
-  const loupeCY=py-L/2-CS;
-  const srcX=Math.max(0, Math.min(px    -srcW/2, pCanvas.width -srcW));
+  const loupeCY=loupeAimY(py);
+  const srcX=Math.max(0, Math.min(px     -srcW/2, pCanvas.width -srcW));
   const srcY=Math.max(0, Math.min(loupeCY-srcH/2, pCanvas.height-srcH));
   const lc=loupeEl.getContext('2d');
   lc.clearRect(0,0,L,L);
@@ -737,7 +739,7 @@ function drawLoupe(px,py) {
   lc.drawImage(pCanvas, srcX, srcY, srcW, srcH, 0, 0, L, L);
   lc.restore();
   loupeEl.style.left=`${rect.left+px-L/2}px`;
-  loupeEl.style.top =`${rect.top +py-L-CS}px`;
+  loupeEl.style.top =`${rect.top +loupeCY-L/2}px`;
 }
 
 function endDrag() {
