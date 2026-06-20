@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Решка — Админка</title>
+<style>
+@font-face {
+  font-family: 'Russo One';
+  src: url('RussoOne-Regular.ttf') format('truetype');
+  font-display: block;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  margin: 0; min-height: 100%;
+  background: #090d18; color: #c5d2e6;
+  font-family: ui-monospace, Menlo, monospace;
+}
+header {
+  background: #0f1628;
+  border-bottom: 1px solid #1e2d50;
+  padding: 14px 24px;
+  display: flex; align-items: center; gap: 16px;
+}
+header h1 {
+  margin: 0;
+  font-family: 'Russo One', serif;
+  font-size: 20px; font-weight: 400;
+  color: #ffd166;
+  letter-spacing: 0.04em;
+}
+header .badge {
+  font-size: 11px; color: #9fb0c8;
+  background: #1e2d50; border-radius: 6px;
+  padding: 2px 8px;
+}
+.layout {
+  display: flex; min-height: calc(100vh - 53px);
+}
+nav {
+  width: 200px; flex-shrink: 0;
+  background: #0b1120;
+  border-right: 1px solid #1e2d50;
+  padding: 16px 0;
+}
+nav a {
+  display: block;
+  padding: 10px 20px;
+  color: #9fb0c8;
+  text-decoration: none;
+  font-size: 14px;
+  border-left: 3px solid transparent;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  cursor: pointer;
+}
+nav a:hover {
+  background: #131d35;
+  color: #c5d2e6;
+}
+nav a.active {
+  background: #131d35;
+  color: #ffd166;
+  border-left-color: #ffd166;
+}
+main {
+  flex: 1;
+  padding: 32px;
+}
+.panel { display: none; }
+.panel.active { display: block; }
+.panel h2 {
+  margin: 0 0 24px;
+  font-family: 'Russo One', serif;
+  font-size: 18px; font-weight: 400;
+  color: #c5d2e6;
+}
+.stub {
+  color: #9fb0c8; font-size: 14px;
+  border: 1px dashed #1e2d50;
+  border-radius: 10px;
+  padding: 40px;
+  text-align: center;
+}
+.setting-row {
+  display: flex; flex-direction: column; gap: 8px;
+  max-width: 400px; margin-bottom: 24px;
+}
+.setting-row label {
+  display: flex; justify-content: space-between;
+  font-size: 14px; color: #9fb0c8;
+}
+.setting-row label b { color: #ffd166; }
+.setting-row input[type=range] {
+  width: 100%; accent-color: #06d6a0; height: 26px;
+}
+.btn-row {
+  display: flex; gap: 10px; margin-top: 4px;
+}
+.btn-row button {
+  border: 0; border-radius: 8px;
+  padding: 8px 18px; font: inherit; font-size: 13px;
+  cursor: pointer; font-weight: 600;
+}
+.btn-apply  { background: #06d6a0; color: #090d18; }
+.btn-save   { background: #ffd166; color: #090d18; }
+.btn-row button:active { opacity: .75; }
+.saved-hint {
+  font-size: 12px; color: #06d6a0;
+  min-height: 18px; transition: opacity 0.3s;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Решка</h1>
+  <span class="badge">Админка</span>
+</header>
+
+<div class="layout">
+  <nav>
+    <a data-panel="settings" class="active">Настройки</a>
+    <a data-panel="debug">Дебаг</a>
+    <a data-panel="stub">Заглушка</a>
+  </nav>
+
+  <main>
+    <div id="settings" class="panel active">
+      <h2>Настройки</h2>
+      <div class="setting-row">
+        <label><span>Скорость шага</span><b><span id="spd-val">220</span> px/с</b></label>
+        <input id="speed" type="range" min="80" max="600" value="220">
+        <div class="btn-row">
+          <button class="btn-apply" id="btn-apply">Применить</button>
+          <button class="btn-save"  id="btn-save">Запомнить</button>
+        </div>
+        <span class="saved-hint" id="saved-hint"></span>
+      </div>
+    </div>
+
+    <div id="debug" class="panel">
+      <h2>Дебаг</h2>
+      <iframe src="/index.html?debug=1" id="debug-frame"
+        style="width:100%;height:calc(100vh - 60px);border:0;border-radius:14px;display:block;"
+        scrolling="no" loading="lazy"></iframe>
+    </div>
+
+    <div id="stub" class="panel">
+      <h2>Заглушка</h2>
+      <div class="stub">В разработке</div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const links = document.querySelectorAll('nav a');
+  const panels = document.querySelectorAll('.panel');
+
+  links.forEach(link => {
+    link.addEventListener('click', () => {
+      const target = link.dataset.panel;
+      links.forEach(l => l.classList.remove('active'));
+      panels.forEach(p => p.classList.remove('active'));
+      link.classList.add('active');
+      document.getElementById(target).classList.add('active');
+    });
+  });
+
+  // ── Speed slider ──
+  const speedInput = document.getElementById('speed');
+  const spdVal     = document.getElementById('spd-val');
+  const savedHint  = document.getElementById('saved-hint');
+
+  const stored = localStorage.getItem('reshka_speed') || sessionStorage.getItem('reshka_speed');
+  if (stored) { speedInput.value = stored; spdVal.textContent = stored; }
+
+  speedInput.addEventListener('input', () => { spdVal.textContent = speedInput.value; });
+
+  function showHint(text) {
+    savedHint.textContent = text;
+    savedHint.style.opacity = '1';
+    clearTimeout(savedHint._t);
+    savedHint._t = setTimeout(() => savedHint.style.opacity = '0', 1800);
+  }
+
+  document.getElementById('btn-apply').addEventListener('click', () => {
+    sessionStorage.setItem('reshka_speed', speedInput.value);
+    showHint('Применено (до закрытия вкладки)');
+  });
+
+  document.getElementById('btn-save').addEventListener('click', () => {
+    localStorage.setItem('reshka_speed', speedInput.value);
+    sessionStorage.setItem('reshka_speed', speedInput.value);
+    showHint('Запомнено навсегда');
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Решка</title>
+<style>
+@font-face { font-family:'Russo One'; src:url('RussoOne-Regular.ttf') format('truetype'); font-display:block; }
+html,body { margin:0; min-height:100%; background:#090d18; color:#c5d2e6;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+  gap:10px; padding:8px 0; font-family:ui-monospace,Menlo,monospace; }
+#game { border-radius:14px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.55); }
+.controls { display:flex; flex-direction:column; gap:10px; }
+.topRow { display:flex; align-items:center; justify-content:space-between; }
+#turn-info { font-size:15px; font-weight:700; }
+#dice { color:#ffd166; font-size:18px; }
+.diceWrap { display:flex; gap:14px; justify-content:center; }
+.die { border-radius:14px; cursor:pointer; touch-action:manipulation; display:block; }
+.die.used { opacity:.35; pointer-events:none; }
+.btnRow { display:none; gap:12px; }
+.btnRow.visible { display:flex; }
+.btnRow button { flex:1; padding:14px; border:0; border-radius:12px;
+  font:inherit; font-size:15px; font-weight:700; cursor:pointer; }
+#btn-bm-yes  { background:#ffd166; color:#090d18; }
+#btn-bm-no   { background:#3a4a6a; color:#c5d2e6; }
+#rules-btn { background:none; border:1px solid #2a3a5a; border-radius:8px; color:#9fb0c8;
+  padding:5px 12px; font:inherit; font-size:12px; cursor:pointer; align-self:flex-end; }
+#rules-btn:hover { background:#131d35; color:#c5d2e6; }
+#rules-overlay { position:fixed; inset:0; background:rgba(0,0,0,.72);
+  display:flex; align-items:center; justify-content:center; z-index:100; }
+#rules-overlay.hidden { display:none; }
+#rules-modal { background:#0f1628; border:1px solid #1e2d50; border-radius:14px;
+  max-width:480px; width:92vw; max-height:82vh; overflow-y:auto; padding:24px; position:relative; }
+#rules-close { position:absolute; top:12px; right:14px; background:none; border:0;
+  color:#9fb0c8; font-size:20px; cursor:pointer; line-height:1; }
+#rules-close:hover { color:#c5d2e6; }
+#rules-modal h2 { margin:0 0 16px; color:#ffd166; font-size:16px; font-weight:700; }
+#rules-modal h3 { color:#c5d2e6; font-size:13px; margin:14px 0 5px; }
+#rules-modal p,#rules-modal li { font-size:12px; color:#9fb0c8; line-height:1.65; margin:0 0 4px; }
+#rules-modal ul { padding-left:18px; margin:0 0 8px; }
+#rules-modal b { color:#ffd166; }
+#rules-modal i { color:#7ab0d8; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div class="controls">
+  <div class="topRow">
+    <span id="turn-info"></span>
+    <span id="dice">—</span>
+  </div>
+  <div class="diceWrap">
+    <canvas id="die1" class="die"></canvas>
+    <canvas id="die2" class="die"></canvas>
+  </div>
+  <button id="rules-btn">📖 Правила</button>
+</div>
+
+<div id="rules-overlay" class="hidden">
+  <div id="rules-modal">
+    <button id="rules-close">✕</button>
+    <h2>📖 Правила игры</h2>
+
+    <h3>Состав и цель</h3>
+    <p>4 игрока, у каждого по 5 фишек. Побеждает тот, кто первым заведёт все 5 фишек в домашнюю дорожку.</p>
+
+    <h3>Поле</h3>
+    <ul>
+      <li><b>Тюрьма</b> — стартовая зона, где фишки ждут выхода.</li>
+      <li><b>Кружок X</b> — точка входа на маршрут (безопасная, срубить нельзя).</li>
+      <li><b>Главная петля</b> — 56 клеток, движение против часовой стрелки.</li>
+      <li><b>Домашняя дорожка</b> — 5 клеток к центру (I–V). Финиш — клетка V.</li>
+      <li><b>Карцер</b> — центральная клетка, штрафная зона.</li>
+    </ul>
+
+    <h3>Ход</h3>
+    <ul>
+      <li>Бросить два кубика, тапнув по ним. Каждый кубик тратится отдельно или оба вместе (ход на сумму).</li>
+      <li>Если накоплены <b>бонусные 6</b> — сначала разыгрываются они (кубик покажет «6»), потом обычный бросок.</li>
+      <li>Нельзя ставить фишку на клетку своей же фишки и нельзя перепрыгивать через свою.</li>
+    </ul>
+
+    <h3>Полный ход</h3>
+    <p>Игрок обязан использовать максимально возможное число кубиков. Если есть последовательность, позволяющая потратить оба, нельзя выбрать действие, после которого один кубик сгорит.</p>
+    <p><i>Пример: 6+1, фишка в тюрьме и пленная фишка, трековых нет → выкуп (6) запрещён, т.к. «1» сгорит; обязателен выход (6) + ход (1).</i></p>
+
+    <h3>Выход из тюрьмы</h3>
+    <ul>
+      <li>Требует кубик <b>6</b>. Фишка встаёт на кружок X.</li>
+      <li>Нельзя выйти, если кружок X занят своей же фишкой.</li>
+    </ul>
+
+    <h3>Вход в дом</h3>
+    <ul>
+      <li>Фишка обязана остановиться на входе в домашнюю дорожку (прогресс 56) — пройти мимо нельзя.</li>
+      <li>Далее — к позиции V. Нужно точное попадание, перелёт запрещён.</li>
+    </ul>
+
+    <h3>🚀 Экспресс</h3>
+    <p>Клетки 6, 20, 34, 48 (синее кольцо) — экспресс-клетки.</p>
+    <ul>
+      <li>Кубик <b>1</b>: прыжок на следующую экспресс-клетку (6→20→34→48→6).</li>
+      <li>Кубик <b>3</b>: прыжок на противоположную (6↔34, 20↔48).</li>
+      <li>Вместо прыжка можно выбрать обычный ход +1 или +3, если он допустим.</li>
+      <li>Каждый экспресс-прыжок даёт <b>дополнительный бросок</b>.</li>
+    </ul>
+
+    <h3>Безопасное место (БМ)</h3>
+    <ul>
+      <li>8 карманов БМ рядом с петлёй — безопасные клетки, срубить нельзя.</li>
+      <li>Когда фишка встаёт напротив кармана — игрок выбирает: съехать или остаться.</li>
+      <li>Фишка в БМ <b>заблокирована</b>, если рядом по петле стоит чужая фишка — выйти нельзя.</li>
+      <li><b>Дубль 1-1</b> снимает блокаду БМ.</li>
+    </ul>
+
+    <h3>Захват и плен</h3>
+    <ul>
+      <li>Фишка рубит всех чужих на своём пути (от текущей до конечной клетки).</li>
+      <li>Срубанная фишка уходит в тюрьму к захватчику — становится <b>пленной</b>.</li>
+      <li>Срубить нельзя: фишку на кружке X и фишки в карманах БМ.</li>
+    </ul>
+
+    <h3>Выкуп из плена</h3>
+    <ul>
+      <li>Потратить кубик <b>6</b> и тапнуть по пленной фишке — она вернётся в свою тюрьму.</li>
+      <li>Захватчик получает <b>бонусный 6</b>: в начале следующего хода сначала ходит им, потом бросает кубики.</li>
+      <li>Если с бонусным 6 нет хода — он сгорает, идёт обычный бросок.</li>
+    </ul>
+
+    <h3>Карцер</h3>
+    <ul>
+      <li><b>Попадание:</b> если по итогам броска мог срубить (обычным ходом, суммой или экспрессом), но не срубил — первая подходящая фишка идёт в карцер.</li>
+      <li><b>Освобождение:</b> только по <b>дублю 1-1</b> — тапнуть подсвеченную фишку в карцере.</li>
+      <li>Своя фишка → домой в тюрьму. Чужая → в плен.</li>
+      <li>Освобождение тратит оба кубика этого броска.</li>
+    </ul>
+
+    <h3>Дополнительный бросок</h3>
+    <p>Ход не переходит, если выпало хотя бы одно из:</p>
+    <ul>
+      <li><b>Дубль</b> — оба кубика одинаковые.</li>
+      <li><b>Срубание</b> — за весь бросок срублена хотя бы одна чужая фишка.</li>
+      <li><b>Экспресс-прыжок</b> — совершён хотя бы один прыжок.</li>
+    </ul>
+    <p>Все три основания дают ровно <b>один</b> дополнительный бросок — они не суммируются.</p>
+  </div>
+</div>
+
+<script src="js/topology.js?v=2"></script>
+<script src="js/engine.js?v=2"></script>
+<script src="phaser.min.js"></script>
+<script>
+const IS_DEBUG = new URLSearchParams(location.search).get('debug') === '1';
+
+function dbgLog(msg) {
+  const ts = new Date().toISOString().slice(11,23);
+  const line = `[${ts}] ${msg}`;
+  if (IS_DEBUG) console.log(line);
+  fetch('/log', { method:'POST', body:line }).catch(()=>{});
+}
+
+let speed = +(sessionStorage.getItem('reshka_speed') || localStorage.getItem('reshka_speed') || 220);
+
+// ── Sizing ──
+const CTRL_H = 200;
+const SIZE = Math.floor(Math.min(window.innerWidth * 0.97, window.innerHeight - CTRL_H));
+document.getElementById('game').style.cssText = `width:${SIZE}px;height:${SIZE}px`;
+document.querySelector('.controls').style.width = SIZE + 'px';
+
+const GR = 21, BMP = 8;
+const CS = Math.floor((SIZE - 2*BMP) / GR);
+const CR = Math.round(CS * 0.45);
+const bpx = c => BMP + c*CS + Math.floor(CS/2);
+const bpy = r => BMP + r*CS + Math.floor(CS/2);
+const halfZ = Math.round(2.7*CS);
+const zW = halfZ*2;
+const diceSize = Math.max(60, Math.min(96, halfZ));
+const ENDR_R = Math.round(CR*1.45), GAP_R = ENDR_R - CR;
+
+['die1','die2'].forEach(id => { const c = document.getElementById(id); c.width = c.height = diceSize; });
+
+// ── Pixel helpers (рендеринг-специфика, не входит в topology) ──
+const X_SHFT = [[0,-GAP_R],[GAP_R,0],[-GAP_R,0],[0,GAP_R]];
+const X_PX   = X_GRID.map(([r,c],s) => ({ x:bpx(c)+X_SHFT[s][0], y:bpy(r)+X_SHFT[s][1] }));
+const KARZER_PX = { x:bpx(10), y:bpy(10) };
+
+// ── Константы игры ──
+const NUM_PLAYERS = 4, NUM_PIECES = 5;
+const SEAT_COLOR = [0xe04040,0x4040e0,0x40c040,0xe0c030];
+const SEAT_LIGHT = [0xff9090,0x9090ff,0x90ff90,0xffee90];
+const SEAT_HEX   = ['#e04040','#4040e0','#40c040','#e0c030'];
+const SEAT_NAME  = ['Красный','Синий','Зелёный','Жёлтый'];
+const HOME_OFFS  = [[-1,-1],[1,-1],[0,0],[-1,1],[1,1]];
+
+// ── Pixel-позиция для фишки по состоянию движка ──
+function pixelForPiece(piece) {
+  const p = ENGINE.pieces[piece.player][piece.id];
+  switch (p.where) {
+    case 'prison': {
+      if (p.captor >= 0 && CORNERS) {
+        const {cx,cy} = CORNERS[p.captor];
+        const [ox,oy] = HOME_OFFS[piece.id];
+        const spc = halfZ * 0.42;
+        return { x:cx + ox*spc, y:cy + oy*spc };
+      }
+      return { x:piece.homeX, y:piece.homeY };
+    }
+    case 'karzer':  return KARZER_PX;
+    case 'track': {
+      if (p.progress === 0) return X_PX[piece.player];
+      if (p.bm) {
+        const b = BM_BY_TRACK[(ENTRY[piece.player] + p.progress) % TRACK.length];
+        if (b) return { x:bpx(b.c)+b.nx*GAP_R, y:bpy(b.r)+b.ny*GAP_R };
+      }
+      const [r,c] = TRACK[(ENTRY[piece.player] + p.progress) % TRACK.length];
+      return { x:bpx(c), y:bpy(r) };
+    }
+    case 'lane': {
+      const li = p.progress - TRACK_MAIN - 1;
+      const [r,c] = HOME_LANE[piece.player][li];
+      return { x:bpx(c), y:bpy(r) };
+    }
+    default: return { x:piece.homeX, y:piece.homeY };
+  }
+}
+
+function destPixelForMove(piece, move) {
+  if (move.kind === 'exit') return X_PX[piece.player];
+  if (move.kind === 'express') {
+    const [r,c] = TRACK[move.expressTrackIdx];
+    return { x:bpx(c), y:bpy(r) };
+  }
+  const prog = move.destProg;
+  if (prog === 0) return X_PX[piece.player];
+  if (prog <= TRACK_MAIN) {
+    const [r,c] = TRACK[(ENTRY[piece.player]+prog) % TRACK.length];
+    return {x:bpx(c),y:bpy(r)};
+  }
+  const li = prog - TRACK_MAIN - 1;
+  const [r,c] = HOME_LANE[piece.player][li];
+  return {x:bpx(c),y:bpy(r)};
+}
+
+// ── Game state ──
+let phase = 'roll';
+let turn  = 0;
+let dice  = [0,0];
+let used  = [false,false];
+
+let turnDouble    = false;
+let turnCaptures  = 0;
+let expressJumps  = 0;
+let bonusSix      = [0,0,0,0];
+let inBonusPhase  = false;
+let bonusPhaseCount = 0;
+let carryCaptures = 0;
+let doubleOne     = false;
+let rollCaptureChances = []; // массив индексов фишек (0-4)
+
+let selPiece  = null;
+let selMove   = null;
+let destMarkers = [];
+let allPieces   = []; // [{player, id, gfx, homeX, homeY, tween}] — только рендер
+let sceneRef    = null;
+let infoText    = null;
+let CORNERS     = null;
+
+function ctx() { return { doubleOne }; }
+
+function isMovable(piece) {
+  if (piece.player !== turn) return false;
+  const p = ENGINE.pieces[piece.player][piece.id];
+  if (p.where === 'karzer') return false;
+  return ENGINE.movesForPiece(piece.player, piece.id, dice, used, ctx()).length > 0;
+}
+
+function anyMovable() {
+  if (allPieces.some(isMovable)) return true;
+  if (doubleOne && ENGINE.karzerEligible(turn)) return true;
+  return false;
+}
+
+// ── Audio ──
+let audioCtx;
+function woodThud(pitch=1, delay=0) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    if (audioCtx.state==='suspended') audioCtx.resume();
+    const ac=audioCtx, t=ac.currentTime+delay;
+    const o=ac.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(200*pitch,t); o.frequency.exponentialRampToValueAtTime(58*pitch,t+0.1);
+    const g=ac.createGain(); g.gain.setValueAtTime(0.55,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t+0.18);
+    const len=Math.floor(ac.sampleRate*0.028), buf=ac.createBuffer(1,len,ac.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2);
+    const src=ac.createBufferSource(); src.buffer=buf;
+    const bpf=ac.createBiquadFilter(); bpf.type='bandpass'; bpf.frequency.value=650; bpf.Q.value=0.7;
+    const g2=ac.createGain(); g2.gain.setValueAtTime(0.38,t); g2.gain.exponentialRampToValueAtTime(0.001,t+0.03);
+    src.connect(bpf).connect(g2).connect(ac.destination); src.start(t);
+  } catch(e) {}
+}
+function blip(freq) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    if (audioCtx.state==='suspended') audioCtx.resume();
+    const t=audioCtx.currentTime, o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type='triangle'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.18,t+0.008); g.gain.exponentialRampToValueAtTime(0.0001,t+0.10);
+    o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t+0.11);
+  } catch(e) {}
+}
+
+// ── Dice draw ──
+function drawDie(ctx, value, s) {
+  ctx.clearRect(0,0,s,s);
+  const pad=Math.round(s*0.07), w=s-pad*2, r=Math.round(w*0.18);
+  function rrect(x,y,w,h,r){
+    ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+  }
+  ctx.save(); ctx.shadowColor='rgba(0,0,0,0.55)'; ctx.shadowBlur=s*0.12; ctx.shadowOffsetX=s*0.04; ctx.shadowOffsetY=s*0.06;
+  const grad=ctx.createLinearGradient(pad,pad,pad+w,pad+w);
+  grad.addColorStop(0,'#d49a22'); grad.addColorStop(0.42,'#b47218'); grad.addColorStop(1,'#7a4010');
+  rrect(pad,pad,w,w,r); ctx.fillStyle=grad; ctx.fill(); ctx.restore();
+  rrect(pad,pad,w,w,r); ctx.strokeStyle='rgba(255,210,70,0.52)'; ctx.lineWidth=Math.max(1.5,s*0.026); ctx.stroke();
+  const dotR=Math.max(2.5,s*0.066);
+  const near=pad+w*0.235, mid=pad+w*0.5, far=pad+w*0.765;
+  const pos=[[],[[mid,mid]],[[near,near],[far,far]],[[near,near],[mid,mid],[far,far]],
+    [[near,near],[far,near],[near,far],[far,far]],
+    [[near,near],[far,near],[mid,mid],[near,far],[far,far]],
+    [[near,near],[far,near],[near,mid],[far,mid],[near,far],[far,far]]];
+  const dots=pos[value]||[];
+  ctx.fillStyle='rgba(0,0,0,0.38)';
+  dots.forEach(([x,y])=>{ctx.beginPath();ctx.arc(x+dotR*0.22,y+dotR*0.22,dotR,0,Math.PI*2);ctx.fill();});
+  ctx.fillStyle='#1c0a00';
+  dots.forEach(([x,y])=>{ctx.beginPath();ctx.arc(x,y,dotR,0,Math.PI*2);ctx.fill();});
+}
+
+// ── Dice animation ──
+let diceRolling = false, die1Rot = 0, die2Rot = 0;
+
+function animateDice() {
+  if (diceRolling || (phase !== 'roll' && !inBonusPhase) || !sceneRef) return;
+  diceRolling = true;
+  const c1=document.getElementById('die1'), c2=document.getElementById('die2');
+  const x1=c1.getContext('2d'), x2=c2.getContext('2d');
+  c1.classList.remove('used'); c2.classList.remove('used');
+  woodThud(1.0,0); woodThud(0.88,0.19); woodThud(0.95,0.37); woodThud(1.05,0.57);
+  die1Rot += 720+Math.floor(Math.random()*180);
+  die2Rot -= 540+Math.floor(Math.random()*200);
+  c1.style.transition='transform 0.72s cubic-bezier(0.15,0.5,0.35,1)';
+  c2.style.transition='transform 0.68s cubic-bezier(0.15,0.5,0.4,1)';
+  c1.style.transform=`rotate(${die1Rot}deg)`;
+  c2.style.transform=`rotate(${die2Rot}deg)`;
+  const totalMs=680, frameMs=68; let elapsed=0;
+  const timer=setInterval(()=>{
+    elapsed+=frameMs;
+    drawDie(x1,Math.ceil(Math.random()*6),diceSize);
+    drawDie(x2,Math.ceil(Math.random()*6),diceSize);
+    if(elapsed>=totalMs){
+      clearInterval(timer);
+      const v1=Phaser.Math.Between(1,6), v2=Phaser.Math.Between(1,6);
+      drawDie(x1,v1,diceSize); drawDie(x2,v2,diceSize);
+      document.getElementById('dice').textContent=`${v1} ✦ ${v2}`;
+      diceRolling=false;
+      doRoll(v1,v2);
+    }
+  },frameMs);
+}
+
+// ── Phaser scene ──
+const config = {
+  type: Phaser.AUTO,
+  backgroundColor: '#7a4a18',
+  parent: 'game',
+  scale: { mode:Phaser.Scale.NONE, width:SIZE, height:SIZE, expandParent:false },
+  scene: { create }
+};
+
+function create() {
+  sceneRef = this;
+  const cR=10, cC=10;
+  const C_RING=0x2a1500, C_CELL=0xf0e8cc, C_STROKE=0x5a3000, C_INK=0x241000, C_WHITE=0xffffff;
+  const ENDR=Math.round(CR*1.45), GAP=ENDR-CR;
+  const FONT="'Russo One', serif";
+
+  const drawCell=(col,row,fill,rad,label,lCol)=>{
+    const x=bpx(col),y=bpy(row),r=rad||CR;
+    this.add.circle(x,y,r+2,C_RING); this.add.circle(x,y,r,fill).setStrokeStyle(1,C_STROKE);
+    if(label){const len=String(label).length;
+      const fs=len===1?Math.floor(r*1.60):len===2?Math.floor(r*1.10):Math.floor(r*0.78);
+      this.add.text(x,y,String(label),{fontSize:fs+'px',fontFamily:FONT,
+        color:'#'+(lCol!==undefined?lCol:C_INK).toString(16).padStart(6,'0')}).setOrigin(0.5,0.5);}
+  };
+
+  const arrowCell=(col,row,angle)=>{
+    const x=bpx(col),y=bpy(row),g=this.add.graphics();
+    g.fillStyle(C_RING);g.fillCircle(x,y,CR+2);g.fillStyle(C_CELL);g.fillCircle(x,y,CR);
+    g.lineStyle(1,C_STROKE);g.strokeCircle(x,y,CR);
+    const ca=Math.cos(angle),sa=Math.sin(angle);
+    const tipX=x+ca*CR*0.80,tipY=y+sa*CR*0.80,tailX=x-ca*CR*0.72,tailY=y-sa*CR*0.72;
+    const lw=Math.max(2,Math.floor(CR*0.22));
+    g.lineStyle(lw,C_INK,1);g.beginPath();g.moveTo(tailX,tailY);g.lineTo(tipX,tipY);g.strokePath();
+    const hw=CR*0.50,bx=tipX-ca*hw*0.62,by=tipY-sa*hw*0.62;
+    const px2=-sa*hw*0.52,py2=ca*hw*0.52;
+    g.fillStyle(C_INK,1);g.fillTriangle(tipX,tipY,bx+px2,by+py2,bx-px2,by-py2);
+  };
+
+  // 1. Home zones
+  const cXY=BMP+Math.round(3.4*CS)+Math.floor(CS/2);
+  CORNERS=[{cx:cXY,cy:cXY},{cx:SIZE-cXY,cy:cXY},{cx:cXY,cy:SIZE-cXY},{cx:SIZE-cXY,cy:SIZE-cXY}];
+  CORNERS.forEach(({cx,cy},s)=>this.add.rectangle(cx,cy,zW,zW,0x000000,0.25).setStrokeStyle(2,SEAT_COLOR[s]));
+
+  // 2. Cross cells
+  const ENTRY_CELLS=new Set(['3,10','17,10','10,3','10,17']);
+  const ARROWS=new Set([`${cR-1},${cC}`,`${cR},${cC+1}`,`${cR+1},${cC}`,`${cR},${cC-1}`]);
+  const DIAG=[{r:cR-1,c:cC-1,a:Math.PI/4},{r:cR-1,c:cC+1,a:3*Math.PI/4},
+              {r:cR+1,c:cC-1,a:-Math.PI/4},{r:cR+1,c:cC+1,a:-3*Math.PI/4}];
+  const DIAGSET=new Set(DIAG.map(d=>`${d.r},${d.c}`));
+  const ROMAN=['V','IV','III','II','I'], ROM={};
+  for(let i=0;i<5;i++){
+    ROM[`${cR-2-i},${cC}`]=ROMAN[i]; ROM[`${cR+2+i},${cC}`]=ROMAN[i];
+    ROM[`${cR},${cC-2-i}`]=ROMAN[i]; ROM[`${cR},${cC+2+i}`]=ROMAN[i];
+  }
+  const inCross=(r,c)=>(c>=9&&c<=11&&r>=3&&r<=17)||(r>=9&&r<=11&&c>=3&&c<=17);
+  for(let r=0;r<GR;r++) for(let c=0;c<GR;c++){
+    const key=`${r},${c}`;
+    if(r===cR&&c===cC) continue;
+    if(ARROWS.has(key)||DIAGSET.has(key)) continue;
+    if(!inCross(r,c)) continue;
+    drawCell(c,r,ENTRY_CELLS.has(key)?C_WHITE:C_CELL,CR,ROM[key]||null);
+  }
+
+  // 3. BM pockets
+  BM_CELLS.forEach(({r,c,nx,ny})=>{
+    const x=bpx(c)+nx*GAP,y=bpy(r)+ny*GAP;
+    this.add.circle(x,y,ENDR+2,C_RING); this.add.circle(x,y,ENDR,C_WHITE).setStrokeStyle(1,C_STROKE);
+    this.add.text(x,y,'БМ',{fontSize:Math.floor(ENDR*0.90)+'px',color:'#241000',fontFamily:FONT}).setOrigin(0.5,0.5);
+  });
+
+  // 4. X-entry circles
+  X_GRID.forEach(([r,c],s)=>{
+    const x=bpx(c)+X_SHFT[s][0],y=bpy(r)+X_SHFT[s][1];
+    this.add.circle(x,y,ENDR+2,C_RING); this.add.circle(x,y,ENDR,C_WHITE).setStrokeStyle(1,C_STROKE);
+    this.add.text(x,y,'X',{fontSize:Math.floor(ENDR*1.40)+'px',
+      color:'#'+SEAT_COLOR[s].toString(16).padStart(6,'0'),fontFamily:FONT}).setOrigin(0.5,0.5);
+  });
+
+  // 5. Arrows
+  arrowCell(cC,cR-1,Math.PI); arrowCell(cC+1,cR,-Math.PI/2);
+  arrowCell(cC,cR+1,0);       arrowCell(cC-1,cR,Math.PI/2);
+  DIAG.forEach(({r,c,a})=>arrowCell(c,r,a));
+
+  // 6. Centre (карцер)
+  const ocx=bpx(cC),ocy=bpy(cR),bs=CR+2,bars=this.add.graphics();
+  bars.fillStyle(0x3a1800);bars.fillCircle(ocx,ocy,bs);
+  bars.lineStyle(1,0x6a4010);bars.strokeCircle(ocx,ocy,bs);
+  bars.lineStyle(3,0xbdbdbd,1);
+  for(let i=-1;i<=1;i++){bars.beginPath();bars.moveTo(ocx+i*bs*0.37,ocy-bs*0.85);bars.lineTo(ocx+i*bs*0.37,ocy+bs*0.85);bars.strokePath();}
+  bars.lineStyle(2,0xbdbdbd,1);
+  for(let i=-1;i<=1;i++){bars.beginPath();bars.moveTo(ocx-bs*0.85,ocy+i*bs*0.35);bars.lineTo(ocx+bs*0.85,ocy+i*bs*0.35);bars.strokePath();}
+
+  // 7. Express rings
+  const eg=this.add.graphics(); eg.lineStyle(3,0x1e90ff,1);
+  EXPRESS_IDX.forEach(idx=>{const[r,c]=TRACK[idx];eg.strokeCircle(bpx(c),bpy(r),CR*0.70);});
+
+  // 8. Info text
+  infoText=this.add.text(12,SIZE-22,'Брось кубики',{
+    fontSize:Math.max(11,Math.floor(SIZE*0.027))+'px',color:'#9fb0c8',fontFamily:'monospace'});
+
+  // 8b. Debug overlay
+  if(IS_DEBUG){
+    const fs=Math.max(8,Math.floor(CR*0.72))+'px';
+    TRACK.forEach(([r,c],idx)=>{
+      this.add.text(bpx(c),bpy(r),String(idx),{fontSize:fs,color:'#ffee00',fontFamily:'monospace',
+        fontStyle:'bold',stroke:'#000',strokeThickness:3}).setOrigin(0.5,0.5);
+    });
+    // Точки входа каждого игрока (первая клетка после X)
+    ENTRY.forEach((e,p)=>{
+      const ti=(e+1)%TRACK.length;
+      const[r,c]=TRACK[ti];
+      this.add.circle(bpx(c),bpy(r),CR*0.28,SEAT_COLOR[p]);
+    });
+  }
+
+  // 9. Pieces (только рендер-объекты, игровое состояние — в ENGINE)
+  const spacing=halfZ*0.42;
+  for(let p=0;p<NUM_PLAYERS;p++){
+    const {cx,cy}=CORNERS[p];
+    for(let id=0;id<NUM_PIECES;id++){
+      const [ox,oy]=HOME_OFFS[id];
+      const px=cx+ox*spacing, py=cy+oy*spacing;
+      const gfx=this.add.circle(px,py,CR*0.85,SEAT_COLOR[p]).setStrokeStyle(2,0xffffff);
+      gfx.setInteractive(new Phaser.Geom.Circle(0,0,CR*1.3),Phaser.Geom.Circle.Contains);
+      const piece={ player:p, id, gfx, homeX:px, homeY:py, tween:null };
+      gfx.on('pointerdown', ()=>onPieceClick(piece));
+      allPieces.push(piece);
+    }
+  }
+
+  drawDie(document.getElementById('die1').getContext('2d'),6,diceSize);
+  drawDie(document.getElementById('die2').getContext('2d'),6,diceSize);
+  updateTurnUI();
+}
+
+// ── UI helpers ──
+function updateTurnUI() {
+  const el=document.getElementById('turn-info');
+  el.textContent = inBonusPhase ? `${SEAT_NAME[turn]} — бонусная 6` : SEAT_NAME[turn];
+  el.style.color = SEAT_HEX[turn];
+}
+
+function updateDiceUI() {
+  document.getElementById('die1').classList.toggle('used',used[0]);
+  document.getElementById('die2').classList.toggle('used',used[1]);
+}
+
+function clearHighlights() {
+  allPieces.forEach(p=>{
+    if(p.tween){p.tween.stop();p.tween=null;}
+    p.gfx.setAlpha(1).setScale(1).setStrokeStyle(2,0xffffff);
+  });
+  destMarkers.forEach(m=>m.destroy());
+  destMarkers=[];
+}
+
+function highlightMovable() {
+  const ko = doubleOne ? ENGINE.karzerEligible(turn) : null;
+  allPieces.forEach(p=>{
+    const isKarzer = ko && ko.seat === p.player && ko.i === p.id;
+    const movable = isMovable(p) || isKarzer;
+    if(!movable){p.gfx.setAlpha(p.player===turn ? 0.3 : 1).setScale(1);return;}
+    p.gfx.setAlpha(1).setScale(1.45).setStrokeStyle(4,SEAT_LIGHT[p.player]);
+    if(p.tween){p.tween.stop();}
+    p.tween=sceneRef.tweens.add({targets:p.gfx,scaleX:1.65,scaleY:1.65,
+      duration:550,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+  });
+}
+
+// ── Bonus 6 phase ──
+function startBonusPhase() {
+  const n = bonusSix[turn];
+  bonusSix[turn] = 0;
+  bonusPhaseCount = n;
+  inBonusPhase = true;
+  dice = [6, 0]; used = [false, true];
+  drawDie(document.getElementById('die1').getContext('2d'), 6, diceSize);
+  document.getElementById('die2').getContext('2d').clearRect(0, 0, diceSize, diceSize);
+  updateDiceUI();
+  phase = 'select'; updateTurnUI();
+  document.getElementById('dice').textContent = n > 1 ? `бонус ×${n}` : 'бонус 6';
+  dbgLog(`BONUS player=${turn} x${n}`);
+  if(!anyMovable()){
+    infoText.setText('Бонус 6 — нет ходов, сгорает');
+    finishOneBonusDie();
+    return;
+  }
+  infoText.setText('Бонусная 6 — сходи, потом бросай');
+  highlightMovable();
+}
+
+function finishOneBonusDie() {
+  bonusPhaseCount--;
+  if(bonusPhaseCount > 0){
+    dice = [6, 0]; used = [false, true];
+    drawDie(document.getElementById('die1').getContext('2d'), 6, diceSize);
+    updateDiceUI();
+    phase = 'select';
+    document.getElementById('dice').textContent = `бонус ×${bonusPhaseCount}`;
+    if(!anyMovable()){ finishOneBonusDie(); return; }
+    infoText.setText('Ещё бонусная 6');
+    highlightMovable();
+    return;
+  }
+  inBonusPhase = false;
+  carryCaptures = turnCaptures; turnCaptures = 0;
+  dice = [0, 0]; used = [false, false];
+  drawDie(document.getElementById('die1').getContext('2d'), 6, diceSize);
+  drawDie(document.getElementById('die2').getContext('2d'), 6, diceSize);
+  updateDiceUI();
+  phase = 'roll'; updateTurnUI();
+  document.getElementById('dice').textContent = '—';
+  infoText.setText('Бонус сыгран — брось кубики');
+  dbgLog(`BONUS_END player=${turn}`);
+}
+
+// ── Roll phase ──
+function doRoll(v1, v2) {
+  clearHighlights();
+  dice=[v1,v2]; used=[false,false];
+  turnDouble=(v1===v2);
+  doubleOne=(v1===1 && v2===1);
+  expressJumps=0;
+  turnCaptures=carryCaptures; carryCaptures=0;
+  updateDiceUI();
+  phase='select'; updateTurnUI();
+
+  rollCaptureChances = ENGINE.captureChances(turn, [v1, v2], [false, false], ctx());
+
+  dbgLog(`ROLL  player=${turn}(${SEAT_NAME[turn]}) dice=[${v1},${v2}]${turnDouble?' DOUBLE':''}${doubleOne?' DBLE1':''}`);
+
+  if(!anyMovable()){
+    dbgLog(`SKIP  player=${turn} нет ходов`);
+    infoText.setText('Нет ходов — ход переходит');
+    setTimeout(endTurn, 1400);
+    return;
+  }
+  infoText.setText(doubleOne&&ENGINE.karzerEligible(turn) ? 'Дубль 1-1 — тапни фишку в карцере' : 'Выбери фишку');
+  highlightMovable();
+}
+
+// ── Select phase ──
+function onPieceClick(piece) {
+  if(phase==='bm') return;
+  if(phase!=='select' && phase!=='dest') return;
+
+  const gp = ENGINE.pieces[piece.player][piece.id];
+
+  // Дубль 1-1: клик по фишке в карцере
+  if(gp.where==='karzer' && doubleOne){
+    const ko=ENGINE.karzerEligible(turn);
+    if(ko && ko.seat===piece.player && ko.i===piece.id){ resolveKarzer(piece); return; }
+  }
+
+  if(!isMovable(piece)) return;
+
+  clearHighlights();
+  selPiece=piece;
+  piece.gfx.setAlpha(1).setScale(1.6).setStrokeStyle(3,0xffffff);
+
+  allPieces.forEach(p=>{
+    if(p===piece) return;
+    if(!isMovable(p)){p.gfx.setAlpha(p.player===turn ? 0.3 : 1);return;}
+    p.gfx.setAlpha(1).setScale(1.45).setStrokeStyle(4,SEAT_LIGHT[p.player]);
+    p.tween=sceneRef.tweens.add({targets:p.gfx,scaleX:1.65,scaleY:1.65,
+      duration:550,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+  });
+
+  const moves=ENGINE.movesForPiece(piece.player, piece.id, dice, used, ctx());
+
+  // Дедупликация: moveBM и move могут совпадать по destProg, но это разные маркеры
+  const byDest={};
+  moves.forEach(m=>{
+    let key;
+    if(m.kind==='express') key=`exp_${m.expressTrackIdx}`;
+    else if(m.kind==='redeem') key='redeem';
+    else if(m.kind==='moveBM') key=`bm_${m.destProg}`;
+    else key=String(m.destProg);
+    if(!byDest[key]) byDest[key]=m;
+  });
+
+  Object.values(byDest).forEach(move=>{
+    let px, py, label;
+    if(move.kind==='redeem'){
+      px=piece.gfx.x; py=piece.gfx.y; label='↩';
+    } else if(move.kind==='moveBM'){
+      const b=move.bmData;
+      px=bpx(b.c)+b.nx*GAP_R; py=bpy(b.r)+b.ny*GAP_R; label='БМ';
+    } else if(move.kind==='express'){
+      const pt=destPixelForMove(piece,move); px=pt.x; py=pt.y; label='🚀';
+    } else {
+      const pt=destPixelForMove(piece,move); px=pt.x; py=pt.y; label=`${move.dieVal}`;
+    }
+
+    const isBM = move.kind==='moveBM';
+    const fillColor  = isBM ? 0xffd166 : SEAT_COLOR[piece.player];
+    const strokeColor = isBM ? 0xffa500 : SEAT_LIGHT[piece.player];
+    const fillAlpha  = isBM ? 0.65 : 0.45;
+    const circle=sceneRef.add.circle(px,py,CR*1.05,fillColor,fillAlpha)
+      .setStrokeStyle(3,strokeColor);
+    const lbl=sceneRef.add.text(px,py,label,{
+      fontSize:Math.floor(CR*0.90)+'px',color:'#ffffff',fontFamily:'monospace',fontStyle:'bold'
+    }).setOrigin(0.5,0.5);
+
+    [circle,lbl].forEach(obj=>{
+      obj.setInteractive(new Phaser.Geom.Circle(0,0,CR*1.6),Phaser.Geom.Circle.Contains);
+      obj.on('pointerdown',()=>onDestClick(move));
+    });
+    sceneRef.tweens.add({targets:circle,alpha:isBM?0.35:0.10,duration:480,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    destMarkers.push(circle,lbl);
+  });
+
+  phase='dest';
+  infoText.setText(moves.some(m=>m.kind==='redeem') ? 'Тапни ↩ чтоб выкупить' : 'Тапни куда идти');
+}
+
+// ── Dest phase ──
+function onDestClick(move) {
+  if(phase!=='dest') return;
+  destMarkers.forEach(m=>m.destroy()); destMarkers=[];
+
+  if(move.kind==='redeem'){
+    selMove=move;
+    executeRedeem(); return;
+  }
+
+  const piece=selPiece;
+  selPiece=null; selMove=null;
+
+  if(move.kind==='sum'){ used[0]=true; used[1]=true; }
+  else if(move.dieIdx>=0) used[move.dieIdx]=true;
+  updateDiceUI();
+  clearHighlights();
+  phase='move';
+
+  dbgLog(`MOVE  player=${turn}(${SEAT_NAME[turn]}) piece=${piece.id} die=${move.dieVal} kind=${move.kind} from=${ENGINE.pieces[piece.player][piece.id].where}[${ENGINE.pieces[piece.player][piece.id].progress}] to=${move.destProg}${move.kind==='moveBM'?' +БМ':''}`);
+  executeMove(piece, move);
+}
+
+// ── Redeem (выкуп пленной фишки) ──
+function executeRedeem() {
+  clearHighlights();
+  const piece=selPiece; selPiece=null; selMove=null;
+  const move=ENGINE.movesForPiece(piece.player, piece.id, dice, used, ctx()).find(m=>m.kind==='redeem');
+  if(!move) return;
+  const captor=ENGINE.redeem(piece.player, piece.id);
+  used[move.dieIdx]=true; updateDiceUI();
+  if(captor>=0) bonusSix[captor]=(bonusSix[captor]||0)+1;
+  dbgLog(`REDEEM player=${turn} frees piece=${piece.id} from player=${captor} → bonusSix[${captor}]=${bonusSix[captor]}`);
+  blip(440);
+  infoText.setText(`Фишка выкуплена! Игрок ${SEAT_NAME[captor]} получает бонусную 6`);
+  sceneRef.tweens.add({targets:piece.gfx,x:piece.homeX,y:piece.homeY,duration:400,ease:'Cubic.easeOut'});
+  setTimeout(afterMove, 500);
+}
+
+// ── Execute movement ──
+function executeMove(piece, move) {
+  const stepDur=Math.max(70, CS/speed*1000);
+  const seat=piece.player, i=piece.id;
+  const p=ENGINE.pieces[seat][i];
+
+  function handleCaptures(captured) {
+    captured.forEach(({seat:cs, i:ci})=>{
+      const cp=allPieces.find(x=>x.player===cs && x.id===ci);
+      if(cp){
+        const dest=pixelForPiece(cp);
+        sceneRef.tweens.add({targets:cp.gfx,x:dest.x,y:dest.y,duration:380,ease:'Cubic.easeIn'});
+        blip(280);
+      }
+    });
+    turnCaptures+=captured.length;
+  }
+
+  function checkWin() {
+    if(ENGINE.winner()>=0){ finishGame(); return; }
+    afterMove();
+  }
+
+  function animSteps(steps, done) {
+    let s=0;
+    function next(){
+      if(s>=steps.length){done();return;}
+      const {x,y}=steps[s++];
+      sceneRef.tweens.add({targets:piece.gfx,x,y,duration:stepDur,ease:'Linear',
+        onComplete:()=>{blip(s%2?600:470);next();}});
+    }
+    next();
+  }
+
+  if(move.kind==='exit'){
+    const {x,y}=X_PX[seat];
+    sceneRef.tweens.add({targets:piece.gfx,x,y,duration:stepDur*3,ease:'Cubic.easeOut',
+      onComplete:()=>{
+        ENGINE.applyDie(seat, i, move.dieVal);
+        checkWin();
+      }});
+    return;
+  }
+
+  if(move.kind==='express'){
+    const [r,c]=TRACK[move.expressTrackIdx];
+    sceneRef.tweens.add({targets:piece.gfx,x:bpx(c),y:bpy(r),duration:stepDur*2,ease:'Back.easeOut',
+      onComplete:()=>{
+        const res=ENGINE.expressJump(seat, i, move.dieVal);
+        handleCaptures(res.captured);
+        expressJumps++;
+        blip(700);
+        checkWin();
+      }});
+    return;
+  }
+
+  if(move.kind==='moveBM'){
+    const fromProg=p.progress;
+    const toProg=move.destProg;
+    const bm=move.bmData;
+    const bmX=bpx(bm.c)+bm.nx*GAP_R, bmY=bpy(bm.r)+bm.ny*GAP_R;
+    const steps=[];
+    for(let q=fromProg+1;q<=toProg;q++){
+      if(q<=TRACK_MAIN){
+        const [r,c]=TRACK[(ENTRY[seat]+q)%TRACK.length];
+        steps.push({x:bpx(c),y:bpy(r)});
+      }
+    }
+    animSteps(steps, ()=>{
+      const res=ENGINE.applyDie(seat, i, move.dieVal);
+      ENGINE.divertToBM(seat, i);
+      handleCaptures(res.captured);
+      blip(600);
+      if(ENGINE.winner()>=0){ finishGame(); return; }
+      sceneRef.tweens.add({targets:piece.gfx,x:bmX,y:bmY,duration:200,ease:'Cubic.easeOut',
+        onComplete:()=>{ blip(470); afterMove(); }});
+      dbgLog(`BM player=${turn} piece=${i}`);
+    });
+    return;
+  }
+
+  // Normal / sum move
+  const fromProg=p.progress;
+  const toProg=move.destProg;
+  const steps=[];
+  for(let q=fromProg+1;q<=toProg;q++){
+    if(q===0){ steps.push(X_PX[seat]); continue; }
+    if(q<=TRACK_MAIN){
+      const [r,c]=TRACK[(ENTRY[seat]+q)%TRACK.length];
+      steps.push({x:bpx(c),y:bpy(r)});
+    } else {
+      const li=q-TRACK_MAIN-1;
+      if(li<HOME_LANE[seat].length){ const[r,c]=HOME_LANE[seat][li]; steps.push({x:bpx(c),y:bpy(r)}); }
+    }
+  }
+  animSteps(steps, ()=>{
+    const res=ENGINE.applyDie(seat, i, move.dieVal);
+    handleCaptures(res.captured);
+    blip(600);
+    checkWin();
+  });
+}
+
+// ── Karzer (дубль 1-1) ──
+function resolveKarzer(piece) {
+  const result=ENGINE.karzerOnDoubleOne(turn);
+  if(!result) return;
+  const cp=allPieces.find(p=>p.player===result.seat && p.id===result.i);
+  if(cp){
+    const dest=pixelForPiece(cp);
+    sceneRef.tweens.add({targets:cp.gfx,x:dest.x,y:dest.y,duration:350,ease:'Cubic.easeOut'});
+  }
+  doubleOne=false;
+  rollCaptureChances=[];
+  used=[true,true]; updateDiceUI();
+  clearHighlights(); blip(440);
+  dbgLog(`KARZER duble1: player=${turn} ${result.kind} seat=${result.seat} piece=${result.i}`);
+  setTimeout(endTurn, 500);
+}
+
+// ── After move ──
+function afterMove() {
+  phase='select';
+  if((!used[0]||!used[1]) && anyMovable()){
+    infoText.setText('Ход вторым кубиком'); highlightMovable(); return;
+  }
+  if(inBonusPhase){ finishOneBonusDie(); return; }
+  endTurn();
+}
+
+function endTurn() {
+  clearHighlights();
+
+  // Карцер: мог срубить, но не срубил
+  if(turnCaptures===0 && rollCaptureChances.length>0){
+    const victimIdx=rollCaptureChances.find(i=>{
+      const w=ENGINE.pieces[turn][i].where;
+      return w==='track' || w==='lane';
+    });
+    if(victimIdx!==undefined){
+      ENGINE.sendToKarzer(turn, victimIdx);
+      const victim=allPieces.find(p=>p.player===turn && p.id===victimIdx);
+      if(victim){
+        sceneRef.tweens.add({targets:victim.gfx,x:KARZER_PX.x,y:KARZER_PX.y,duration:600,ease:'Cubic.easeIn'});
+      }
+      dbgLog(`KARZER player=${turn} piece=${victimIdx} → карцер (мог срубить)`);
+    }
+  }
+  rollCaptureChances=[];
+
+  const why=[];
+  if(turnDouble)     why.push('дубль');
+  if(turnCaptures>0) why.push('срубил');
+  if(expressJumps>0) why.push('экспресс');
+  turnDouble=false; turnCaptures=0; expressJumps=0; doubleOne=false;
+
+  if(why.length){
+    dbgLog(`EXTRA player=${turn} (${why.join('+')})`);
+    infoText.setText(`${SEAT_NAME[turn]}: ${why.join(' + ')} — брось кубики!`);
+    dice=[0,0]; used=[false,false];
+    updateDiceUI();
+    document.getElementById('dice').textContent='—';
+    drawDie(document.getElementById('die1').getContext('2d'),6,diceSize);
+    drawDie(document.getElementById('die2').getContext('2d'),6,diceSize);
+    phase='roll';
+    return;
+  }
+
+  nextTurn();
+}
+
+function nextTurn() {
+  dbgLog(`TURN  → player=${(turn+1)%NUM_PLAYERS}(${SEAT_NAME[(turn+1)%NUM_PLAYERS]})`);
+  turn=(turn+1)%NUM_PLAYERS;
+  phase='roll'; dice=[0,0]; used=[false,false];
+  turnDouble=false; turnCaptures=0; expressJumps=0;
+  inBonusPhase=false; bonusPhaseCount=0;
+  carryCaptures=0; doubleOne=false;
+  updateDiceUI();
+  document.getElementById('dice').textContent='—';
+  drawDie(document.getElementById('die1').getContext('2d'),6,diceSize);
+  drawDie(document.getElementById('die2').getContext('2d'),6,diceSize);
+  infoText.setText('Брось кубики');
+  updateTurnUI();
+}
+
+// ── Win ──
+function finishGame() {
+  const winner=ENGINE.winner();
+  if(winner<0) return;
+  phase='over';
+  clearHighlights();
+  infoText.setText(`🏆 ${SEAT_NAME[winner]} победил!`);
+  dbgLog(`WIN player=${winner}(${SEAT_NAME[winner]})`);
+  document.getElementById('dice').textContent='';
+}
+
+// ── Dice trigger ──
+function triggerRoll(){
+  if(phase!=='roll'||diceRolling||!sceneRef){
+    dbgLog(`CLICK_BLOCKED phase=${phase} rolling=${diceRolling}`);
+    return;
+  }
+  if(bonusSix[turn]>0){ startBonusPhase(); return; }
+  animateDice();
+}
+
+// ── Listeners ──
+document.getElementById('die1').addEventListener('click', triggerRoll);
+document.getElementById('die2').addEventListener('click', triggerRoll);
+
+const rulesOverlay=document.getElementById('rules-overlay');
+document.getElementById('rules-btn').addEventListener('click', ()=>rulesOverlay.classList.remove('hidden'));
+document.getElementById('rules-close').addEventListener('click', ()=>rulesOverlay.classList.add('hidden'));
+rulesOverlay.addEventListener('click', e=>{ if(e.target===rulesOverlay) rulesOverlay.classList.add('hidden'); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') rulesOverlay.classList.add('hidden'); });
+
+fetch('/log', { method:'POST', body:'=== GAME START ===' }).catch(()=>{});
+document.fonts.load("16px 'Russo One'")
+  .then(()=>new Phaser.Game(config))
+  .catch(()=>new Phaser.Game(config));
+</script>
+</body>
+</html>
