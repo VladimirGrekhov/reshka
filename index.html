@@ -179,18 +179,6 @@ const ENDR_R = Math.round(CR*1.45), GAP_R = ENDR_R - CR;
 
 ['die1','die2'].forEach(id => { const c = document.getElementById(id); c.width = c.height = diceSize; });
 
-// Лупа (touch-only)
-loupeEl = document.createElement('canvas');
-const LS = Math.round(Math.min(Math.max(SIZE * 0.36, 100), 160));
-loupeEl.width = loupeEl.height = LS;
-Object.assign(loupeEl.style, {
-  position:'fixed', borderRadius:'50%', display:'none', zIndex:'999',
-  border:'3px solid rgba(255,255,255,0.85)',
-  boxShadow:'0 4px 24px rgba(0,0,0,0.6)',
-  pointerEvents:'none', touchAction:'none',
-});
-document.body.appendChild(loupeEl);
-
 // ── Pixel helpers (рендеринг-специфика, не входит в topology) ──
 const X_SHFT = [[0,-GAP_R],[GAP_R,0],[-GAP_R,0],[0,GAP_R]];
 const X_PX   = X_GRID.map(([r,c],s) => ({ x:bpx(c)+X_SHFT[s][0], y:bpy(r)+X_SHFT[s][1] }));
@@ -279,6 +267,19 @@ let CORNERS     = null;
 let dragState   = null; // touch drag state
 let loupeEl     = null; // loupe canvas element
 const IS_TOUCH  = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+
+// Лупа (touch-only): создаём после объявления loupeEl
+{ const LS = Math.round(Math.min(Math.max(SIZE * 0.36, 100), 160));
+  loupeEl = document.createElement('canvas');
+  loupeEl.width = loupeEl.height = LS;
+  Object.assign(loupeEl.style, {
+    position:'fixed', borderRadius:'50%', display:'none', zIndex:'999',
+    border:'3px solid rgba(255,255,255,0.85)',
+    boxShadow:'0 4px 24px rgba(0,0,0,0.6)',
+    pointerEvents:'none', touchAction:'none',
+  });
+  document.body.appendChild(loupeEl);
+}
 
 function ctx() { return { doubleOne }; }
 
