@@ -714,7 +714,7 @@ function drawLoupe(px,py) {
   lc.drawImage(pCanvas, srcX, srcY, srcW, srcH, 0, 0, L, L);
   lc.restore();
   loupeEl.style.left=`${rect.left+px-L/2}px`;
-  loupeEl.style.top =`${rect.top +py-L/2}px`;
+  loupeEl.style.top =`${rect.top +py-L-16}px`;
 }
 
 function endDrag() {
