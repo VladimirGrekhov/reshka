@@ -521,8 +521,8 @@ function create() {
     }
   }
 
-  drawDie(document.getElementById('die1').getContext('2d'),6,diceSize);
-  drawDie(document.getElementById('die2').getContext('2d'),6,diceSize);
+  drawDie(document.getElementById('die1').getContext('2d'),0,diceSize);
+  drawDie(document.getElementById('die2').getContext('2d'),0,diceSize);
   updateTurnUI();
 
   // Scene-level drag tracking (touch)
@@ -633,8 +633,8 @@ function finishOneBonusDie() {
   inBonusPhase = false;
   carryCaptures = turnCaptures; turnCaptures = 0;
   dice = [0, 0]; used = [false, false];
-  drawDie(document.getElementById('die1').getContext('2d'), 6, diceSize);
-  drawDie(document.getElementById('die2').getContext('2d'), 6, diceSize);
+  drawDie(document.getElementById('die1').getContext('2d'), 0, diceSize);
+  drawDie(document.getElementById('die2').getContext('2d'), 0, diceSize);
   updateDiceUI();
   phase = 'roll'; updateTurnUI();
   document.getElementById('dice').textContent = '—';
@@ -1083,8 +1083,8 @@ function endTurn() {
     dice=[0,0]; used=[false,false];
     updateDiceUI();
     document.getElementById('dice').textContent='—';
-    drawDie(document.getElementById('die1').getContext('2d'),6,diceSize);
-    drawDie(document.getElementById('die2').getContext('2d'),6,diceSize);
+    drawDie(document.getElementById('die1').getContext('2d'),0,diceSize);
+    drawDie(document.getElementById('die2').getContext('2d'),0,diceSize);
     phase='roll';
     return;
   }
@@ -1101,8 +1101,8 @@ function nextTurn() {
   carryCaptures=0; doubleOne=false;
   updateDiceUI();
   document.getElementById('dice').textContent='—';
-  drawDie(document.getElementById('die1').getContext('2d'),6,diceSize);
-  drawDie(document.getElementById('die2').getContext('2d'),6,diceSize);
+  drawDie(document.getElementById('die1').getContext('2d'),0,diceSize);
+  drawDie(document.getElementById('die2').getContext('2d'),0,diceSize);
   infoText.setText('Брось кубики');
   updateTurnUI();
 }
