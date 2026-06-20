@@ -526,7 +526,23 @@ function create() {
   updateTurnUI();
 
   // Scene-level drag tracking (touch)
-  this.input.on('pointerdown', (pointer)=>{ if(IS_TOUCH){ if(loupeEl) loupeEl.style.display='block'; drawLoupe(pointer.x,pointer.y); } });
+  this.input.on('pointerdown', (pointer)=>{
+    if(!IS_TOUCH) return;
+    if(loupeEl) loupeEl.style.display='block';
+    drawLoupe(pointer.x, pointer.y);
+    if(!dragState){
+      // Попытка схватить фишку через центр лупы
+      const L=loupeEl?loupeEl.width:0;
+      const lcx=pointer.x, lcy=pointer.y-L/2-CS;
+      let nearest=null, nearestDist=CS*1.8;
+      allPieces.forEach(p=>{
+        if(!isMovable(p)) return;
+        const d=Math.hypot(p.gfx.x-lcx, p.gfx.y-lcy);
+        if(d<nearestDist){nearestDist=d; nearest=p;}
+      });
+      if(nearest) startDrag(nearest, pointer);
+    }
+  });
   this.input.on('pointermove', (pointer)=>{ if(dragState) updateDrag(pointer); else if(IS_TOUCH&&pointer.isDown) drawLoupe(pointer.x,pointer.y); });
   this.input.on('pointerup',   ()        =>{ if(dragState) endDrag(); if(IS_TOUCH&&loupeEl) loupeEl.style.display='none'; });
 }
