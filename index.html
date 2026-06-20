@@ -694,6 +694,7 @@ function updateDrag(pointer) {
     const d=Math.hypot(t.px-fx,t.py-fy);
     if(d<MAGNET_R&&d<bestDist){bestDist=d;best=t;}
   });
+  if(best && best!==dragState.snapTarget) navigator.vibrate&&navigator.vibrate(40);
   dragState.snapTarget=best;
   piece.gfx.setPosition(best?best.px:fx, best?best.py:fy);
   drawLoupe(fx,fy);
