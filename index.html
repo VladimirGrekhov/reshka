@@ -644,8 +644,10 @@ function dragPixelForMove(piece, move) {
 }
 
 function startDrag(piece, pointer) {
+  dbgLog(`DRAG_START player=${piece.player} id=${piece.id} phase=${phase} movable=${isMovable(piece)}`);
   if(phase!=='select' || !isMovable(piece)) return;
   const rawMoves=ENGINE.movesForPiece(piece.player,piece.id,dice,used,ctx());
+  dbgLog(`DRAG_MOVES count=${rawMoves.length}`);
   if(!rawMoves.length) return;
 
   clearHighlights();
@@ -673,6 +675,7 @@ function startDrag(piece, pointer) {
     if(p===piece) return;
     p.gfx.setAlpha(p.player===turn?0.3:1).setScale(1);
   });
+  dbgLog(`DRAG_GO targets=${validTargets.length} loupe=${!!loupeEl} IS_TOUCH=${IS_TOUCH}`);
   if(loupeEl) loupeEl.style.display='block';
   updateDrag(pointer);
 }
