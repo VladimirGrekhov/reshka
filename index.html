@@ -687,16 +687,19 @@ function updateDrag(pointer) {
   if(!dragState) return;
   const {piece,validTargets}=dragState;
   const fx=pointer.x, fy=pointer.y;
+  // Прицел — центр лупы (выше пальца)
+  const L=loupeEl?loupeEl.width:0;
+  const lcx=fx, lcy=fy-L/2-CS;
 
   const MAGNET_R=CS*2.5;
   let best=null, bestDist=Infinity;
   validTargets.forEach(t=>{
-    const d=Math.hypot(t.px-fx,t.py-fy);
+    const d=Math.hypot(t.px-lcx,t.py-lcy);
     if(d<MAGNET_R&&d<bestDist){bestDist=d;best=t;}
   });
   if(best && best!==dragState.snapTarget) navigator.vibrate&&navigator.vibrate(40);
   dragState.snapTarget=best;
-  piece.gfx.setPosition(best?best.px:fx, best?best.py:fy);
+  piece.gfx.setPosition(best?best.px:lcx, best?best.py:lcy);
   drawLoupe(fx,fy);
 }
 
