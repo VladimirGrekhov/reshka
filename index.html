@@ -738,6 +738,10 @@ function updateDrag(pointer) {
       piece.gfx.setPosition(origX,origY);
       dragState=null; clearHighlights(); selPiece=null;
       startDrag(near,pointer);
+      // Вернувшаяся фишка — не бледная, пульсирует как подсвеченная
+      piece.gfx.setAlpha(1).setScale(1.45).setStrokeStyle(4,SEAT_LIGHT[piece.player]);
+      piece.tween=sceneRef.tweens.add({targets:piece.gfx,scaleX:1.65,scaleY:1.65,
+        duration:550,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
       return;
     }
   }
