@@ -721,12 +721,16 @@ function updateDrag(pointer) {
   const lcx=fx, lcy=fy-L/2-CS;
 
   // Авто-переключение: лупа над другой подвижной фишкой
+  // Только если лупа уже отошла от начальной точки (нет мгновенного переключения)
+  const loupeTravelDist=Math.hypot(lcx-dragState.origX, lcy-dragState.origY);
   let switchTo=null, switchDist=CS*1.8;
-  allPieces.forEach(p=>{
-    if(p===piece||!isMovable(p)) return;
-    const d=Math.hypot(p.gfx.x-lcx, p.gfx.y-lcy);
-    if(d<switchDist){switchDist=d; switchTo=p;}
-  });
+  if(loupeTravelDist>CS*2){
+    allPieces.forEach(p=>{
+      if(p===piece||!isMovable(p)) return;
+      const d=Math.hypot(p.gfx.x-lcx, p.gfx.y-lcy);
+      if(d<switchDist){switchDist=d; switchTo=p;}
+    });
+  }
   if(switchTo){
     const {origX,origY,hints}=dragState;
     hints.forEach(h=>h.destroy());
