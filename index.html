@@ -702,7 +702,7 @@ function startDrag(piece, pointer) {
       .setStrokeStyle(2,SEAT_LIGHT[piece.player]).setDepth(4)
   );
 
-  dragState={piece, origX:piece.gfx.x, origY:piece.gfx.y, validTargets, snapTarget:null, hints};
+  dragState={piece, origX:piece.gfx.x, origY:piece.gfx.y, validTargets, snapTarget:null, hints, switchCandidate:null, switchAt:0};
   piece.gfx.setDepth(10).setScale(1.0).setStrokeStyle(3,0xffffff);
   allPieces.forEach(p=>{
     if(p===piece) return;
@@ -720,25 +720,26 @@ function updateDrag(pointer) {
   const L=loupeEl?loupeEl.width:0;
   const lcx=fx, lcy=fy-L/2-CS;
 
-  // Авто-переключение: лупа над другой подвижной фишкой
-  // Только если лупа уже отошла от начальной точки (нет мгновенного переключения)
-  const loupeTravelDist=Math.hypot(lcx-dragState.origX, lcy-dragState.origY);
-  let switchTo=null, switchDist=CS*1.8;
-  if(loupeTravelDist>CS*2){
+  // Авто-переключение: лупа держится над другой фишкой 400мс
+  {
+    let near=null, nearDist=CS*1.8;
     allPieces.forEach(p=>{
       if(p===piece||!isMovable(p)) return;
       const d=Math.hypot(p.gfx.x-lcx, p.gfx.y-lcy);
-      if(d<switchDist){switchDist=d; switchTo=p;}
+      if(d<nearDist){nearDist=d; near=p;}
     });
-  }
-  if(switchTo){
-    const {origX,origY,hints}=dragState;
-    hints.forEach(h=>h.destroy());
-    piece.gfx.setDepth(0).setScale(1).setStrokeStyle(2,0xffffff);
-    piece.gfx.setPosition(origX,origY);
-    dragState=null; clearHighlights(); selPiece=null;
-    startDrag(switchTo,pointer);
-    return;
+    const now=performance.now();
+    if(near!==dragState.switchCandidate){
+      dragState.switchCandidate=near; dragState.switchAt=now;
+    } else if(near && now-dragState.switchAt>400){
+      const {origX,origY,hints}=dragState;
+      hints.forEach(h=>h.destroy());
+      piece.gfx.setDepth(0).setScale(1).setStrokeStyle(2,0xffffff);
+      piece.gfx.setPosition(origX,origY);
+      dragState=null; clearHighlights(); selPiece=null;
+      startDrag(near,pointer);
+      return;
+    }
   }
 
   const MAGNET_R=CS*2.5;
