@@ -720,6 +720,23 @@ function updateDrag(pointer) {
   const L=loupeEl?loupeEl.width:0;
   const lcx=fx, lcy=fy-L/2-CS;
 
+  // Авто-переключение: лупа над другой подвижной фишкой
+  let switchTo=null, switchDist=CS*1.8;
+  allPieces.forEach(p=>{
+    if(p===piece||!isMovable(p)) return;
+    const d=Math.hypot(p.gfx.x-lcx, p.gfx.y-lcy);
+    if(d<switchDist){switchDist=d; switchTo=p;}
+  });
+  if(switchTo){
+    const {origX,origY,hints}=dragState;
+    hints.forEach(h=>h.destroy());
+    piece.gfx.setDepth(0).setScale(1).setStrokeStyle(2,0xffffff);
+    piece.gfx.setPosition(origX,origY);
+    dragState=null; clearHighlights(); selPiece=null;
+    startDrag(switchTo,pointer);
+    return;
+  }
+
   const MAGNET_R=CS*2.5;
   let best=null, bestDist=Infinity;
   validTargets.forEach(t=>{
