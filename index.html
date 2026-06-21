@@ -789,7 +789,8 @@ function endDrag() {
   selPiece=null;
 
   if(!snapTarget){
-    sceneRef.tweens.add({targets:piece.gfx,x:origX,y:origY,duration:220,ease:'Back.easeOut'});
+    sceneRef.tweens.add({targets:piece.gfx,x:origX,y:origY,duration:220,ease:'Back.easeOut',
+      onComplete:()=>highlightMovable()});
     return;
   }
 
