@@ -772,7 +772,7 @@ function endDrag() {
   const unique=[];
   const seen=new Set();
   moves.forEach(m=>{
-    const k=m.kind+(m.dieIdx>=0?m.dieIdx:'s');
+    const k=m.kind+'|'+m.dieVal;
     if(!seen.has(k)){seen.add(k);unique.push(m);}
   });
   if(unique.length>1) { showMoveChoice(piece,snapTarget.px,snapTarget.py,unique); return; }
